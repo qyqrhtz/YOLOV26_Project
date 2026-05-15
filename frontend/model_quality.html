@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>模型质量可视化</title>
+    <style>
+        body {
+            margin: 0;
+            background: #f3f4f6;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: #1f2937;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 20px 24px;
+        }
+
+        h1 {
+            margin: 0 0 16px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .tip {
+            margin: 0 0 16px;
+            color: #6b7280;
+        }
+
+        #modelList {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+            padding: 14px;
+        }
+
+        .card h2 {
+            margin: 0 0 10px;
+            font-size: 18px;
+            font-weight: 700;
+            word-break: break-all;
+        }
+
+        .current-tag {
+            display: inline-block;
+            font-size: 12px;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            vertical-align: middle;
+        }
+
+        .meta {
+            margin: 0 0 10px;
+            color: #4b5563;
+            font-size: 14px;
+        }
+
+        .metrics {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .metric {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 13px;
+            color: #111827;
+        }
+
+        .images {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .img-wrap {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .img-wrap p {
+            margin: 0 0 8px;
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        .img-wrap img {
+            width: 100%;
+            border-radius: 6px;
+            display: block;
+            cursor: zoom-in;
+        }
+
+        .preview-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .preview-modal.show {
+            display: flex;
+        }
+
+        .preview-content {
+            position: relative;
+            width: min(1100px, 96vw);
+            max-height: 92vh;
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .preview-close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            border: none;
+            background: #e5e7eb;
+            color: #111827;
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .preview-close:hover {
+            background: #d1d5db;
+        }
+
+        #previewImage {
+            width: 100%;
+            max-height: calc(92vh - 24px);
+            object-fit: contain;
+            border-radius: 6px;
+        }
+
+        @media (max-width: 768px) {
+            .images {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <h1>模型质量可视化</h1>
+        <p class="tip" id="summary">正在加载模型训练效果...</p>
+        <p class="tip">图像直接使用 YOLO 训练输出结果，不做 CSV 二次绘图。</p>
+        <div id="modelList"></div>
+    </div>
+    <div id="previewModal" class="preview-modal" onclick="closePreview(event)">
+        <div class="preview-content">
+            <button class="preview-close" onclick="closePreview()">关闭</button>
+            <img id="previewImage" alt="放大预览图">
+        </div>
+    </div>
+
+    <script>
+        function metricLabel(key) {
+            const mapping = {
+                "metrics/precision(B)": "Precision",
+                "metrics/recall(B)": "Recall",
+                "metrics/mAP50(B)": "mAP50",
+                "metrics/mAP50-95(B)": "mAP50-95",
+                "fitness": "Fitness"
+            };
+            return mapping[key] || key;
+        }
+
+        function chartLabel(key) {
+            const mapping = {
+                results: "训练过程",
+                pr_curve: "PR 曲线",
+                f1_curve: "F1 曲线",
+                confusion_matrix: "混淆矩阵"
+            };
+            return mapping[key] || key;
+        }
+
+        function renderModels(models) {
+            const list = document.getElementById("modelList");
+            if (!models.length) {
+                list.innerHTML = "<div class='card'><p class='meta'>未找到可视化训练结果。</p></div>";
+                return;
+            }
+
+            let html = "";
+            for (const item of models) {
+                let metricsHtml = "";
+                const metricKeys = Object.keys(item.metrics || {});
+                if (metricKeys.length) {
+                    for (const key of metricKeys) {
+                        metricsHtml += `<div class="metric">${metricLabel(key)}: ${item.metrics[key]}</div>`;
+                    }
+                } else {
+                    metricsHtml = `<div class="metric">未找到 results.csv 指标</div>`;
+                }
+
+                let imagesHtml = "";
+                const chartKeys = Object.keys(item.charts || {});
+                for (const key of chartKeys) {
+                    imagesHtml += `
+                        <div class="img-wrap">
+                            <p>${chartLabel(key)}</p>
+                            <img src="${item.charts[key]}" alt="${chartLabel(key)}" onclick="openPreview(this.src)">
+                        </div>
+                    `;
+                }
+                if (!imagesHtml) {
+                    imagesHtml = `<div class="img-wrap"><p>暂无可视化图</p></div>`;
+                }
+
+                html += `
+                    <div class="card">
+                        <h2>
+                            ${item.model_path}
+                            ${item.is_current ? '<span class="current-tag">当前模型</span>' : ""}
+                        </h2>
+                        <p class="meta">训练目录：${item.train_dir}</p>
+                        <div class="metrics">${metricsHtml}</div>
+                        <div class="images">${imagesHtml}</div>
+                    </div>
+                `;
+            }
+            list.innerHTML = html;
+        }
+
+        function openPreview(src) {
+            document.getElementById("previewImage").src = src;
+            document.getElementById("previewModal").classList.add("show");
+        }
+
+        function closePreview(event) {
+            if (!event || event.target.id === "previewModal") {
+                document.getElementById("previewModal").classList.remove("show");
+            }
+        }
+
+        function loadModelMetrics() {
+            const params = new URLSearchParams(window.location.search);
+            const modelPath = params.get("model_path") || "";
+            if (!modelPath) {
+                document.getElementById("summary").innerText = "未指定模型，请先在主页面选择模型再进入可视化";
+                return;
+            }
+
+            fetch("http://127.0.0.1:8000/model-metrics?model_path=" + encodeURIComponent(modelPath))
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.models.length) {
+                        document.getElementById("summary").innerText = "未找到该模型对应的训练可视化结果";
+                        document.getElementById("modelList").innerHTML = "";
+                        return;
+                    }
+                    document.getElementById("summary").innerText = "当前展示模型：" + data.models[0].model_path;
+                    renderModels(data.models);
+                })
+                .catch(() => {
+                    document.getElementById("summary").innerText = "加载失败，请确认后端服务已启动";
+                });
+        }
+
+        document.addEventListener("DOMContentLoaded", loadModelMetrics);
+    </script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>服装检测系统</title>
+    <style>
+        body {
+            margin: 0;
+            background: #f3f4f6;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: #1f2937;
+        }
+
+        .page {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .title {
+            margin: 0;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .panel {
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+        }
+
+        .panel h2 {
+            margin: 0 0 12px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .upload-panel {
+            width: 360px;
+            max-width: 100%;
+            align-self: center;
+        }
+
+        .upload-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .upload-tip {
+            margin: 10px 0 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .model-row {
+            margin-top: 10px;
+        }
+
+        .model-select {
+            height: 34px;
+            min-width: 210px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #fff;
+            padding: 0 10px;
+            color: #1f2937;
+        }
+
+        .action-btn,
+        button {
+            border: none;
+            background: #2563eb;
+            color: #fff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .action-btn:hover,
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .history-actions {
+            margin-bottom: 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #records {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .record-card {
+            width: 260px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .record-card p {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .record-card img {
+            width: 100%;
+            border-radius: 6px;
+            display: block;
+            margin: 8px 0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.2);
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            width: 520px;
+            max-width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+            padding: 16px;
+        }
+
+        .modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .modal-head h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: #e5e7eb;
+            color: #111827;
+            padding: 6px 10px;
+        }
+
+        .close-btn:hover {
+            background: #d1d5db;
+        }
+
+        #imgResult {
+            width: 90%;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+
+        #list {
+            margin-top: 10px;
+            color: #374151;
+            line-height: 1.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <h1 class="title">服装检测系统</h1>
+
+        <div class="panel upload-panel">
+            <h2>上传区域</h2>
+            <div class="upload-row">
+                <input type="file" id="fileInput" onchange="onFileSelected()">
+                <label for="fileInput" class="action-btn">选择文件</label>
+                <button onclick="showFileName()">开始检测</button>
+            </div>
+            <div class="upload-row model-row">
+                <select id="modelSelect" class="model-select"></select>
+                <button onclick="applyModel()">应用模型</button>
+                <button onclick="openModelQuality()">模型质量可视化</button>
+            </div>
+            <p class="upload-tip" id="modelTip">当前模型：加载中...</p>
+            <p class="upload-tip" id="uploadTip">请上传一张图片进行检测</p>
+        </div>
+
+        <div class="panel">
+            <h2>当前检测结果</h2>
+            <p style="margin: 0; color: #6b7280;">检测完成后，将以弹窗形式展示结果。</p>
+        </div>
+
+        <div class="panel">
+            <h2>历史记录</h2>
+            <div class="history-actions">
+                <button onclick="loadRecords()">查看历史记录</button>
+                <button onclick="collapseRecords()">收起历史记录</button>
+            </div>
+            <div id="records"></div>
+        </div>
+    </div>
+
+    <div id="resultModal" class="modal" onclick="closeResultModal(event)">
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3>当前检测结果</h3>
+                <button class="close-btn" onclick="closeResultModal()">关闭</button>
+            </div>
+            <p id="result"></p>
+            <img id="imgResult" alt="检测结果图">
+            <div id="list"></div>
+        </div>
+    </div>
+
+    <script>
+        function loadModels() {
+            fetch("http://127.0.0.1:8000/models")
+                .then(res => res.json())
+                .then(data => {
+                    const select = document.getElementById("modelSelect");
+                    select.innerHTML = "";
+
+                    for (let item of data.models) {
+                        const option = document.createElement("option");
+                        option.value = item.path;
+                        option.textContent = item.path;
+                        if (item.is_current) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    }
+
+                    document.getElementById("modelTip").innerText = "当前模型：" + data.current_model;
+                })
+                .catch(() => {
+                    document.getElementById("modelTip").innerText = "当前模型：加载失败";
+                });
+        }
+
+        function applyModel() {
+            const modelPath = document.getElementById("modelSelect").value;
+            if (!modelPath) {
+                document.getElementById("modelTip").innerText = "当前模型：没有可选模型";
+                return;
+            }
+
+            fetch("http://127.0.0.1:8000/model", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ model_path: modelPath })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.detail) {
+                        document.getElementById("modelTip").innerText = "模型切换失败：" + data.detail;
+                        return;
+                    }
+                    document.getElementById("modelTip").innerText = "当前模型：" + data.model_path;
+                    loadModels();
+                })
+                .catch(() => {
+                    document.getElementById("modelTip").innerText = "模型切换失败：网络错误";
+                });
+        }
+
+        function openModelQuality() {
+            const select = document.getElementById("modelSelect");
+            const modelPath = select.value;
+            if (!modelPath) {
+                document.getElementById("modelTip").innerText = "请先选择模型，再查看质量可视化";
+                return;
+            }
+            const url = "http://127.0.0.1:8000/frontend/model_quality.html?model_path=" + encodeURIComponent(modelPath);
+            window.open(url, "_blank");
+        }
+
+        function onFileSelected() {
+            const file = document.getElementById("fileInput").files[0];
+            document.getElementById("uploadTip").innerText = file ? ("已选择：" + file.name) : "请上传一张图片进行检测";
+        }
+
+        function showFileName() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+            if (!file) {
+                document.getElementById("uploadTip").innerText = "你还没有选择图片";
+                return;
+            }
+            document.getElementById("uploadTip").innerText = "已选择：" + file.name;
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("http://127.0.0.1:8000/detect", {
+                method: "POST",
+                body: formData,
+            })
+                .then(res => res.json())
+                .then(data => {
+                    console.log("data:",data);
+                    document.getElementById("result").innerText =
+                    "检测到 " + data["目标数量"] + " 个目标";
+                    document.getElementById("imgResult").src =
+                    data["检测结果路径"];
+                    let html = '';
+                    for(let item of data["检测结果"]) {
+                        html += item["类别"] + "（置信度：" + item["置信度"] + "）<br>";
+                    }
+                    document.getElementById("list").innerHTML = html;
+                    document.getElementById("resultModal").classList.add("show");
+                });
+        }
+
+        function loadRecords() {
+            fetch("http://127.0.0.1:8000/records")
+            .then(res => res.json())
+            .then(data => {
+                let html = "";
+
+                for (let item of data) {
+                    let detail = JSON.parse(item.result_json);
+                    let detailHtml = "";
+                    for (let d of detail) {
+                        detailHtml += d["类别"] + "（" + d["置信度"] + "）<br>";
+                    }
+                    html += `
+                        <div class="record-card">
+                            <p><strong>时间：</strong>${item.created_at}</p>
+                            <p><strong>检测数量：</strong>${item.target_count}</p>
+                            <img src="${item.result_image}" alt="检测历史图片">
+                            <p>${detailHtml}</p>
+                            <button onclick="deleteRecord(${item.id})">删除</button>
+                        </div>
+                    `;
+                }
+                document.getElementById("records").innerHTML = html;
+            });
+        }
+
+        function deleteRecord(id) {
+            fetch(`http://127.0.0.1:8000/records/${id}`, {
+                method: "DELETE"
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log(data);
+                loadRecords();
+            });
+        }
+
+        function collapseRecords() {
+            document.getElementById("records").innerHTML = "";
+        }
+
+        function closeResultModal(event) {
+            if (!event || event.target.id === "resultModal") {
+                document.getElementById("resultModal").classList.remove("show");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", loadModels);
+    </script>
+</body>
+</html>
