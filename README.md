@@ -1,4 +1,4 @@
-# YOLOV26_Project
+# YOLOV26_服装分类检测课程设计Project
 
 基于 YOLO、FastAPI 和 MySQL 的服装目标检测项目，提供图片上传、目标识别、检测记录管理和模型切换能力。
 
